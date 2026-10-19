@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personal To‑Do · Tailwind + JS</title>
+  <!-- Tailwind via CDN (utility-first) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- tiny custom font (optional) -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    /* subtle transition for task items */
+    .task-item { transition: background 0.1s ease; }
+    /* strikethrough style for completed tasks */
+    .task-completed .task-text {
+      text-decoration: line-through;
+      color: #9ca3af; /* gray-400 */
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-indigo-50 min-h-screen flex items-center justify-center p-4">
+
+  <!-- main card -->
+  <main class="w-full max-w-2xl bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/40 p-6 md:p-8">
+    
+    <!-- header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+      <h1 class="text-3xl font-bold text-gray-800 flex items-center gap-2">
+        <span class="text-indigo-600">✓</span> My To‑Do
+      </h1>
+      <!-- dynamic counter -->
+      <div class="text-sm bg-indigo-100 text-indigo-800 px-4 py-1.5 rounded-full font-medium shadow-sm">
+        <span id="taskCounter">0</span> tasks · <span id="completedCounter">0</span> done
+      </div>
+    </div>
+
+    <!-- input row -->
+    <div class="flex flex-col sm:flex-row gap-2 mb-6">
+      <input 
+        type="text" 
+        id="taskInput" 
+        placeholder="Add a new task (e.g., study math, buy groceries)" 
+        class="flex-1 border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent shadow-sm text-gray-700 placeholder-gray-400"
+        autocomplete="off"
+      >
+      <button 
+        id="addBtn" 
+        class="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold px-6 py-3 rounded-xl transition shadow-md flex items-center justify-center gap-1"
+      >
+        <span class="text-lg leading-none">+</span> Add
+      </button>
+    </div>
+
+    <!-- task list container -->
+    <div class="mt-2">
+      <h2 class="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-2 px-1">Your tasks</h2>
+      <ul id="taskList" class="space-y-2 max-h-96 overflow-y-auto pr-1 custom-scroll">
+        <!-- JS will populate dynamically -->
+        <!-- empty state message will be injected via JS when no tasks -->
+      </ul>
+    </div>
+
+    <!-- small hint (optional) -->
+    <p class="text-xs text-gray-400 mt-6 text-center">
+      Click ✓ to complete · Click ✕ to delete
+    </p>
+  </main>
+
+  <script>
+    (function() {
+      // ---------- STATE ----------
+      // Each task: { id: string, text: string, completed: boolean }
+      let tasks = [];
+
+      // ---------- DOM REFERENCES ----------
+      const taskInput = document.getElementById('taskInput');
+      const addBtn = document.getElementById('addBtn');
+      const taskList = document.getElementById('taskList');
+      const taskCounterSpan = document.getElementById('taskCounter');
+      const completedCounterSpan = document.getElementById('completedCounter');
+
+      // ---------- UTILITY: UPDATE COUNTERS ----------
+      function updateCounters() {
+        const total = tasks.length;
+        const completed = tasks.filter(t => t.completed).length;
+        taskCounterSpan.textContent = total;
+        completedCounterSpan.textContent = completed;
+      }
+
+      // ---------- RENDER TASK LIST FROM STATE ----------
+      function renderTasks() {
+        // Clear the entire list (we re-render from scratch – simple state management)
+        taskList.innerHTML = '';
+
+        if (tasks.length === 0) {
+          // Show friendly empty state
+          const emptyLi = document.createElement('li');
+          emptyLi.className = 'text-center text-gray-400 py-8 bg-gray-50/50 rounded-xl border border-dashed border-gray-200';
+          emptyLi.textContent = '✨ No tasks yet. Add one above!';
+          taskList.appendChild(emptyLi);
+        } else {
+          // Loop through tasks and create <li> for each
+          tasks.forEach(task => {
+            // Create list item container
+            const li = document.createElement('li');
+            li.className = `task-item flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm hover:shadow-md ${task.completed ? 'task-completed bg-gray-50' : ''}`;
+            li.dataset.id = task.id;   // store task id for event delegation
+
+            // Left side: checkbox-like button (✓) + task text
+            const leftDiv = document.createElement('div');
+            leftDiv.className = 'flex items-center gap-3 flex-1 min-w-0';
+
+            // Complete toggle button (✓ or ✓ already completed style)
+            const completeBtn = document.createElement('button');
+            completeBtn.className = `flex-shrink-0 w-6 h-6 rounded-full border flex items-center justify-center transition ${
+              task.completed 
+                ? 'bg-indigo-600 border-indigo-600 text-white' 
+                : 'border-gray-300 hover:border-indigo-400 text-transparent hover:text-indigo-300'
+            }`;
+            completeBtn.setAttribute('aria-label', task.completed ? 'Mark as incomplete' : 'Mark as complete');
+            completeBtn.innerHTML = task.completed ? '✓' : '✓'; // always show check but hidden by text-transparent when not completed
+            // We'll handle click via event delegation, but we need a data attribute or rely on parent li
+            completeBtn.dataset.action = 'toggle';
+            completeBtn.dataset.id = task.id;
+
+            // Task text span
+            const textSpan = document.createElement('span');
+            textSpan.className = `task-text text-gray-700 break-words ${task.completed ? 'line-through text-gray-400' : ''}`;
+            textSpan.textContent = task.text;
+
+            leftDiv.appendChild(completeBtn);
+            leftDiv.appendChild(textSpan);
+
+            // Right side: delete button (✕)
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'flex-shrink-0 text-gray-400 hover:text-red-500 transition p-1 rounded-full hover:bg-red-50';
+            deleteBtn.setAttribute('aria-label', 'Delete task');
+            deleteBtn.innerHTML = '✕'; // multiplication sign
+            deleteBtn.dataset.action = 'delete';
+            deleteBtn.dataset.id = task.id;
+
+            // Assemble li
+            li.appendChild(leftDiv);
+            li.appendChild(deleteBtn);
+
+            taskList.appendChild(li);
+          });
+        }
+
+        // Always update counters after re-render
+        updateCounters();
+      }
+
+      // ---------- ADD NEW TASK ----------
+      function addTask() {
+        const text = taskInput.value.trim();
+        if (text === '') {
+          // optional: small visual feedback
+          taskInput.classList.add('ring-2', 'ring-rose-300', 'border-rose-300');
+          setTimeout(() => {
+            taskInput.classList.remove('ring-2', 'ring-rose-300', 'border-rose-300');
+          }, 300);
+          return;
+        }
+
+        // Create new task object
+        const newTask = {
+          id: Date.now() + '-' + Math.random().toString(36).substring(2, 8), // unique enough
+          text: text,
+          completed: false
+        };
+
+        tasks.push(newTask);
+        taskInput.value = '';       // clear input
+        taskInput.focus();          // keep focus for fast entry
+        renderTasks();              // re-render list & counters
+      }
+
+      // ---------- TOGGLE COMPLETED STATE ----------
+      function toggleTaskCompletion(taskId) {
+        const task = tasks.find(t => t.id === taskId);
+        if (task) {
+          task.completed = !task.completed;
+          renderTasks();            // re-render to reflect changes
+        }
+      }
+
+      // ---------- DELETE TASK ----------
+      function deleteTask(taskId) {
+        tasks = tasks.filter(t => t.id !== taskId);
+        renderTasks();
+      }
+
+      // ---------- EVENT DELEGATION (list item actions) ----------
+      taskList.addEventListener('click', (e) => {
+        // Find the closest button with data-action (could be the button itself or a child)
+        const actionBtn = e.target.closest('button[data-action]');
+        if (!actionBtn) return;
+
+        const action = actionBtn.dataset.action;
+        const taskId = actionBtn.dataset.id;
+
+        if (action === 'toggle') {
+          toggleTaskCompletion(taskId);
+        } else if (action === 'delete') {
+          deleteTask(taskId);
+        }
+      });
+
+      // ---------- EVENT LISTENERS ----------
+      addBtn.addEventListener('click', addTask);
+
+      // Add task on Enter key in input field
+      taskInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();   // prevent any form submission side effects
+          addTask();
+        }
+      });
+
+      // ---------- INITIAL RENDER (empty list) ----------
+      // Add a couple of example tasks to demonstrate? (optional)
+      // We'll start with two sample tasks to show the UI.
+      // Uncomment the next lines if you want pre-filled tasks.
+      /*
+      tasks = [
+        { id: '1', text: 'Review JavaScript DOM', completed: false },
+        { id: '2', text: 'Buy groceries', completed: true },
+        { id: '3', text: 'Finish Tailwind assignment', completed: false }
+      ];
+      */
+      // Start with empty state to match objective (user adds tasks)
+      // But we want to show the empty state nicely. So tasks = [].
+      tasks = [];   // start empty
+
+      // Initial render
+      renderTasks();
+
+      // Focus input on page load
+      taskInput.focus();
+    })();
+  </script>
+
+  <!-- optional tiny scrollbar styling -->
+  <style>
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 10px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #c7d2fe;
+      border-radius: 10px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #a5b4fc;
+    }
+  </style>
+</body>
+</html>
